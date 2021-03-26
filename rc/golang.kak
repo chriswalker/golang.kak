@@ -1,9 +1,13 @@
 # -----------------------------------------------------------------------------
 # golang.kak
 #
-# This module provides ddditional syntax highlighting for test coverge and Go
-# module files, and commands for switching to alternate files, running tests and
-# displayed test coverage in the current buffer.
+# This module provides additional syntax highlighting for test coverage and Go
+# module files, and commands for:
+# 
+# - switching to alternate files,
+# - running tests,
+# - displaying test coverage in the current buffer, and
+# - adding/removing struct tags (e.g. `json:"foo"`)
 # -----------------------------------------------------------------------------
 
 # Set Go modules filetype (.mod and .sum files)
@@ -41,6 +45,14 @@ declare-option -hidden range-specs go_covered_range
 declare-option -hidden range-specs go_notcovered_range
 
 provide-module golang %{
+
+    # Check tooling dependencies; just gomodifytags currently
+    evaluate-commands %sh{
+       if ! command -v gomodifytags > /dev/null 2>&1; then
+           printf "%s\n" "echo -markup {Error}gomodifytags is not installed, please install via 'go get'"
+       fi
+    }
+    
     #
     # Module files (go.mod and go.sum)
     #
@@ -79,6 +91,9 @@ provide-module golang %{
         evaluate-commands %sh{
             file_root=""
        	    file_suffix=""
+            # TODO - looks like alt jumping between source and test files
+            # will be handled by Kakoune in next release, so will be able to
+            # remove some of the below
        	    if [[ "${kak_bufname}" =~ _test\.go$ ]]; then
        	        file_root=${kak_bufname%_test*}
     	        file_suffix='.go'
@@ -115,7 +130,6 @@ provide-module golang %{
     		fi
 
             # Get diectory current buffer file is in & filename
-            # bufname
             cur_dir=${kak_buffile%/*}
 
             go test ${cur_dir} > /dev/null 2>&1
@@ -169,6 +183,56 @@ provide-module golang %{
         }
     }
 
+    # String containing constructed args for gomodifytags
+    declare-option -hidden str go_modifytags_flags
+
+    # Apply tags to the Go structure the cursor is currently within. Requires at
+    # least one tag to add; multiple tags can be supplied as a comma-separated
+    # list (e.g. 'go-add-tags json,yaml').
+    # -----------------------------------------------------------------------------
+    define-command go-add-tags -params ..1 -docstring "(Go) Add tags to the surrounding struct" %{
+        set-option buffer go_modifytags_flags "-add-tags %arg{1} -offset %val{cursor_byte_offset}"
+        evaluate-commands -draft %{
+            execute-keys '%'
+            go-modify-tags
+        }
+    }
+
+    # Remove tags from the Go structure the cursor is currently within. Requires at
+    # least one tag to remove; multiple tags can be supplied as a comma-separated
+    # list (e.g. 'go-remove-tags json,yaml').
+    # -----------------------------------------------------------------------------
+    define-command go-remove-tags -params ..1 -docstring "(Go) Remove tags from the surrounding struct" %{
+        set-option buffer go_modifytags_flags "-remove-tags %arg{1} -offset %val{cursor_byte_offset}"
+        evaluate-commands -draft %{
+            execute-keys '%'
+            go-modify-tags
+        }
+    }
+
+    # Internal command to modify a struct's tags; modelled on rc/tools/format.kak
+    # -----------------------------------------------------------------------------
+    define-command go-modify-tags -hidden %{
+        evaluate-commands -draft -no-hooks -save-regs '|' %{
+            set-register '|' %{
+                in="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
+                out="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
+
+                cat > "$in"
+                gomodifytags -file $in $kak_opt_go_modifytags_flags > $out
+                if [ $? -eq 0 ]; then
+                    cat "$out"
+                else
+                	# TODO - this has changed in recent commits to format.kak, so recheck this
+                    # when next version of Kakoune is released to see if 'fail' now works here
+                    printf 'eval -client %s %%{ echo -markup %%{{Error}gomodifytags returned an error - check debug buffer} }' "$kak_client" | kak -p "$kak_session"
+                    cat "$in"
+                fi
+                rm -f "$in" "$out"
+            }
+            execute-keys '|<ret>'
+        }
+    }
 }
 
 require-module golang
