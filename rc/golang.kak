@@ -87,42 +87,31 @@ provide-module golang %{
 
     # Switch to alternate file (e.g. from foo.go -> foo_test.go, go.mod -> go.sum)
     # -----------------------------------------------------------------------------
-    define-command go-alternate -docstring "(Go) Switch to alternate file" %{
+    define-command go-alternate -docstring "Switch to alternate Go file" %{
         evaluate-commands %sh{
-            file_root=""
-       	    file_suffix=""
-            # TODO - looks like alt jumping between source and test files
-            # will be handled by Kakoune in next release, so will be able to
-            # remove some of the below
-       	    if [[ "${kak_bufname}" =~ _test\.go$ ]]; then
-       	        file_root=${kak_bufname%_test*}
-    	        file_suffix='.go'
-            elif [[ "${kak_bufname}" =~ \.go$ ]]; then
-                file_root=${kak_bufname%.go*}
-                file_suffix='_test.go'
-            elif [[ "${kak_buffile}" =~ go\.mod$ ]]; then
-                file_suffix='go.sum'
-            elif [[ "${kak_buffile}" =~ go\.sum$ ]]; then
-                file_suffix='go.mod'
-            else
-                printf "%s\n" "fail 'Not a Go file'"
-     	        exit
-            fi
+            case $kak_bufname in
+            	*_test.go)
+            		altfile=${kak_bufname%_test.go}.go
+        		;;
+            	*.go)
+                    altfile=${kak_bufname%.go}_test.go
+            	;;
+        		go.mod)
+        			altfile=${kak_bufname%.mod}.sum
+        		;;
+        		go.sum)
+        			altfile=${kak_bufname%.sum}.mod
+        		;;
+        	esac
+        	test ! -f $altfile && echo "fail '$altfile not found'" && exit
 
-    		if [ ! -f ${file_root}${file_suffix} ]; then
-    		    printf "%s\n" "fail '${file_root##*/}${file_suffix} does not exist'"
-    		    exit
-    		fi
-    		
-            # TODO - Check alt file is readable?
-             
-            printf "%s\n" "edit ${file_root}${file_suffix}"
+       		printf "%s\n" "edit ${altfile}"
         }
     }
 
     # [WIP] Run tests in current package
     # -----------------------------------------------------------------------------   
-    define-command go-test -docstring "(Go) Run tests in current package" %{
+    define-command go-test -docstring "Run Go tests in current package" %{
         evaluate-commands %sh{
     		if [[ ! "${kak_bufname}" =~ \.go$ ]]; then
                 printf "%s\n" "fail 'Not a Go file'"
@@ -144,7 +133,7 @@ provide-module golang %{
 
     # Display test coverage in the current buffer
     # -----------------------------------------------------------------------------
-    define-command go-coverage -docstring "(Go) Show test coverage for the currently open file" %{
+    define-command go-coverage -docstring "Show test coverage for the currently open Go file" %{
         evaluate-commands %sh{
     		if [[ ! "${kak_bufname}" =~ \.go$ ]]; then
                 printf "%s\n" "fail 'Not a Go file'"
@@ -190,30 +179,25 @@ provide-module golang %{
     # least one tag to add; multiple tags can be supplied as a comma-separated
     # list (e.g. 'go-add-tags json,yaml').
     # -----------------------------------------------------------------------------
-    define-command go-add-tags -params ..1 -docstring "(Go) Add tags to the surrounding struct" %{
+    define-command go-add-tags -params ..1 -docstring "Add tags to the surrounding Go struct" %{
         set-option buffer go_modifytags_flags "-add-tags %arg{1} -offset %val{cursor_byte_offset}"
-        evaluate-commands -draft %{
-            execute-keys '%'
-            go-modify-tags
-        }
+        go-modify-tags
     }
 
     # Remove tags from the Go structure the cursor is currently within. Requires at
     # least one tag to remove; multiple tags can be supplied as a comma-separated
     # list (e.g. 'go-remove-tags json,yaml').
     # -----------------------------------------------------------------------------
-    define-command go-remove-tags -params ..1 -docstring "(Go) Remove tags from the surrounding struct" %{
+    define-command go-remove-tags -params ..1 -docstring "Remove tags from the surrounding Go struct" %{
         set-option buffer go_modifytags_flags "-remove-tags %arg{1} -offset %val{cursor_byte_offset}"
-        evaluate-commands -draft %{
-            execute-keys '%'
-            go-modify-tags
-        }
+        go-modify-tags
     }
 
     # Internal command to modify a struct's tags; modelled on rc/tools/format.kak
     # -----------------------------------------------------------------------------
     define-command go-modify-tags -hidden %{
         evaluate-commands -draft -no-hooks -save-regs '|' %{
+            execute-keys '%'
             set-register '|' %{
                 in="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
                 out="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
