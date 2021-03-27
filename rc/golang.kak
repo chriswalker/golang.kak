@@ -46,12 +46,6 @@ declare-option -hidden range-specs go_notcovered_range
 
 provide-module golang %{
 
-    # Check tooling dependencies; just gomodifytags currently
-    evaluate-commands %sh{
-       if ! command -v gomodifytags > /dev/null 2>&1; then
-           printf "%s\n" "echo -markup {Error}gomodifytags is not installed, please install via 'go get'"
-       fi
-    }
     
     #
     # Module files (go.mod and go.sum)
@@ -181,6 +175,7 @@ provide-module golang %{
     # -----------------------------------------------------------------------------
     define-command go-add-tags -params ..1 -docstring "Add tags to the surrounding Go struct" %{
         set-option buffer go_modifytags_flags "-add-tags %arg{1} -offset %val{cursor_byte_offset}"
+        go-check-dep gomodifytags
         go-modify-tags
     }
 
@@ -190,6 +185,7 @@ provide-module golang %{
     # -----------------------------------------------------------------------------
     define-command go-remove-tags -params ..1 -docstring "Remove tags from the surrounding Go struct" %{
         set-option buffer go_modifytags_flags "-remove-tags %arg{1} -offset %val{cursor_byte_offset}"
+        go-check-dep gomodifytags
         go-modify-tags
     }
 
@@ -209,12 +205,23 @@ provide-module golang %{
                 else
                 	# TODO - this has changed in recent commits to format.kak, so recheck this
                     # when next version of Kakoune is released to see if 'fail' now works here
-                    printf 'eval -client %s %%{ echo -markup %%{{Error}gomodifytags returned an error - check debug buffer} }' "$kak_client" | kak -p "$kak_session"
+                    printf 'eval -client %s %%{ echo -markup {Error}gomodifytags returned an error - check debug buffer }' "$kak_client" | kak -p "$kak_session"
                     cat "$in"
                 fi
                 rm -f "$in" "$out"
             }
             execute-keys '|<ret>'
+        }
+    }
+
+    # Checks whether the binary dependency specified by param 1 can be found;
+    # displays an error if not.
+    # -----------------------------------------------------------------------------
+    define-command go-check-dep -hidden -params 1 %{
+        evaluate-commands %sh{
+           if ! command -v $1 > /dev/null 2>&1; then
+                echo "fail $1 not found, please install via go get"
+           fi
         }
     }
 }
