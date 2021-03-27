@@ -16,7 +16,9 @@ It does not aim to implement all features found in [vim-go], but just enough of 
 go get github.com/fatih/gomodifytags
 ```
 
-If the `gomodifytags` binary is not found in `$GOBIN`, the plugin will output an error indicating this on startup (future versions of the plugin will provide a better UI around tooling dependencies).
+If the `gomodifytags` binary is not found in `$GOBIN`, the plugin will output an error indicating this when invoking the `go-add-tags` or `go-remove-tags` commands; a missing `gomodifytags` binary will not prevent other plugin features from working.
+
+Future versions of the plugin will provide a better UI around tooling dependencies.
 
 ## Installation
 Choose one of the following installation methods:
