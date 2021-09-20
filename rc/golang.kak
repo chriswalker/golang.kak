@@ -37,6 +37,12 @@ hook global WinSetOption go_display_coverage=true %{
 	}
 }
 
+#TODO: implement a warning for fmt failure????? idk 
+hook global WinSetOption filetype=go %{
+      set window formatcmd 'gofmt'
+         hook buffer BufWritePre .* %{format}
+}
+
 # Whether coverage highlights are being displayed
 declare-option -hidden bool go_display_coverage false
 # Range spec for code covered by a test
