@@ -37,6 +37,17 @@ hook global WinSetOption go_display_coverage=true %{
 	}
 }
 
+# Add test output highlighters if in test buffer
+hook global BufCreate test  %{
+    require-module golang
+
+	add-highlighter buffer/gotest ref gotest
+
+    hook -once -always buffer BufClose test %{
+        remove-highlighter buffer/gotest
+	}
+}
+
 # Whether coverage highlights are being displayed
 declare-option -hidden bool go_display_coverage false
 # Range spec for code covered by a test
@@ -79,6 +90,13 @@ provide-module golang %{
     add-highlighter shared/gocov/ ranges go_covered_range
     add-highlighter shared/gocov/ ranges go_notcovered_range
 
+    #
+    # Test command output
+    #
+    add-highlighter shared/gotest regions
+    add-highlighter shared/gotest/pass region "^.*PASS" "\n" fill Covered
+    add-highlighter shared/gotest/fail region "^.*FAIL" "\n" fill NotCovered
+
     # Switch to alternate file (e.g. from foo.go -> foo_test.go, go.mod -> go.sum)
     # -----------------------------------------------------------------------------
     define-command go-alternate -docstring "Switch to alternate Go file" %{
@@ -103,31 +121,64 @@ provide-module golang %{
         }
     }
 
-    # [WIP] Run tests in current package
+    # Run tests in current package.
+	#
+	# Can output results as a summary in the modeline, or full verbose test
+	# output in a dedicated buffer.
     # -----------------------------------------------------------------------------   
-    define-command go-test -docstring "Run Go tests in current package" %{
+    define-command -params ..1 -docstring "Run Go tests in current package" \
+        -shell-script-candidates %{
+            if [ $kak_token_to_complete -eq 0 ]; then
+            	printf "summary\n"
+            fi
+        } \
+        go-test %{
         evaluate-commands %sh{
     		if [[ ! "${kak_bufname}" =~ \.go$ ]]; then
                 printf "%s\n" "fail 'Not a Go file'"
     			exit
     		fi
 
-            # Get diectory current buffer file is in & filename
+            # Get diectory current buffer file is in
             cur_dir=${kak_buffile%/*}
 
-            go test ${cur_dir} > /dev/null 2>&1
+            # Check if shortened output requested; summarises results in
+            # the modeline
+            if [ ${#} == "1" ]; then
+                if [ ${1} != "summary" ]; then
+                    printf "%s\n" "fail 'Unknown command argument \"${1}\"'"
+                    exit
+                fi
 
-            if [ $? == 0 ]; then
-                printf "%s\n" "echo -markup '{green}Tests passed'"
-            else
-                printf "%s\n" "fail 'Tests failed'"
+                go test ${cur_dir} > /dev/null 2>&1
+                if [ $? == 0 ]; then
+                    printf "%s\n" "echo -markup '{green}Tests passed'"
+                else
+                    printf "%s\n" "fail 'Tests failed'"
+                fi
+                exit
             fi
+            
+            # Else output full test results to the test buffer
+            output="$(mktemp -d "${TMPDIR:-/tmp/}"kak-gotest.XXXXXXXX)/fifo"
+            mkfifo ${output}
+
+            (eval go test -v ${cur_dir} > ${output} 2>&1 &) > /dev/null 2>&1 < /dev/null
+
+			printf "%s\n" "evaluate-commands %{
+				edit! -fifo ${output} -scroll test
+				hook -always -once buffer BufCloseFifo .* %{
+					nop %sh{
+						rm -r $(dirname ${output})
+					}
+				}
+			}"
         }
     }
 
     # Display test coverage in the current buffer
     # -----------------------------------------------------------------------------
-    define-command go-coverage -docstring "Show test coverage for the currently open Go file" %{
+    define-command go-coverage -docstring "Show test coverage for the current Go file" %{
         evaluate-commands %sh{
     		if [[ ! "${kak_bufname}" =~ \.go$ ]]; then
                 printf "%s\n" "fail 'Not a Go file'"
@@ -173,7 +224,7 @@ provide-module golang %{
     # least one tag to add; multiple tags can be supplied as a comma-separated
     # list (e.g. 'go-add-tags json,yaml').
     # -----------------------------------------------------------------------------
-    define-command go-add-tags -params ..1 -docstring "Add tags to the surrounding Go struct" %{
+	define-command go-add-tags -params ..1 -docstring "Add tags to the surrounding Go struct" %{
         set-option buffer go_modifytags_flags "-add-tags %arg{1} -offset %val{cursor_byte_offset}"
         go-check-dep gomodifytags
         go-modify-tags
@@ -195,8 +246,8 @@ provide-module golang %{
         evaluate-commands -draft -no-hooks -save-regs '|' %{
             execute-keys '%'
             set-register '|' %{
-                in="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
-                out="$(mktemp "${TMPDIR:-/tmp}"/golang-kak-tags.XXXXXX)"
+                in="$(mktemp "${TMPDIR:-/tmp/}"golang-kak-tags.XXXXXX)"
+                out="$(mktemp "${TMPDIR:-/tmp/}"golang-kak-tags.XXXXXX)"
 
                 cat > "$in"
                 gomodifytags -file $in $kak_opt_go_modifytags_flags > $out

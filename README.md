@@ -3,7 +3,7 @@
 
 * Syntax highlighting for Go module files (`go.mod` and `go.sum`),
 * Alternate file switching (switch from a `.go` file to its `_test.go` file, or between `go.mod` and `go.sum` files) via `go-alternate`,
-* Execution of Go unit tests via `go-test`,
+* Execution of Go unit tests via `go-test`, with optional display of test results in a dedicated buffer,
 * Display test file coverage in the current buffer via `go-coverage`, and
 * Some basic struct tag handling via `go-add-tags` and `go-remove-tags`.
 
@@ -31,14 +31,14 @@ Choose one of the following installation methods:
 
 Command | Description
 ------- | -----------
-<nobr>`go-test`|Run tests in the current package. Currently the test status is displayed in the modeline.
+<nobr>`go-test`|Run tests for the current file, if they exist. Test results can be summarised in the modeline via `:go-test summary`, otherwise calling `:go-test` with no args displays verbose test output in a dedicated `test` buffer. In this case test successes and failures are appropriately hightlighted.
 <nobr>`go-coverage`|Display test coverage highlighters in the current file, if it is a `.go` file. Run the command again to remove coverage highlights.
 <nobr>`go-alternate`|Switch from a `.go` file to its associated `_test.go` file, if one exists, or vice versa. Also switches between `go.mod` and `go.sum` files.
 <nobr>`go-add-tags`|Add the specified tag (or tags, as a comma-separated list) to the struct the cursor is currently within. `go-add-tags` is additive, and each successive execution within a struct will add new tags to its fields.
 <nobr>`go-remove-tags`|Remove a specified tag (or tags, as a comma-separated list) from the struct the cursor is currently within. `go-remove-tags` is subtractive and each successive execution within a struct will remove further tags from its fields.
 
 ## Configuration
-**golang.kak** does not require any specific configuration. However, its provided highlighters for Go module files and unit test coverage are globally defined, and can be overridden after **golang.kak** has been loaded:
+**golang.kak** does not require any specific configuration. However, its provided highlighters for Go module files and unit test output/coverage are globally defined, and can be overridden after **golang.kak** has been loaded:
 
 ### Module files
 Face | Description
@@ -51,9 +51,9 @@ Face | Description
 ### Test Coverage
 Face | Description
 ---- | -----------
-`Covered` | Colour of code covered by unit tests
-`Uncovered` | Colour of code not covered by unit tests
-`Uninstrumented` | Colour of code not instrumented by `go test`
+`Covered` | Colour of code covered by unit tests; this face is also used for highighting successful tests in the `test` buffer.
+`Uncovered` | Colour of code not covered by unit tests; this face is also used for highighting failing tests in the `test` buffer.
+`Uninstrumented` | Colour of code not instrumented by `go test`.
 
 ## Acknowledgements
 This plugin is inspired by [vim-go]; therefore grateful thanks are due to Fatih Arslan (creator of [vim-go]) and all contributors to that project. Thank you, all.
