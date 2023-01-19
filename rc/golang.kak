@@ -38,7 +38,7 @@ hook global WinSetOption go_display_coverage=true %{
 }
 
 # Add test output highlighters if in test buffer
-hook global BufCreate test  %{
+hook global BufCreate \*test\*  %{
     require-module golang
 
 	add-highlighter buffer/gotest ref gotest
@@ -166,7 +166,7 @@ provide-module golang %{
             (eval go test -v ${cur_dir} > ${output} 2>&1 &) > /dev/null 2>&1 < /dev/null
 
 			printf "%s\n" "evaluate-commands %{
-				edit! -fifo ${output} -scroll test
+				edit! -fifo ${output} -scroll *test*
 				hook -always -once buffer BufCloseFifo .* %{
 					nop %sh{
 						rm -r $(dirname ${output})
