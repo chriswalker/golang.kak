@@ -72,7 +72,7 @@ provide-module golang %{
 
 	add-highlighter shared/gomod/default default-region group
     add-highlighter shared/gomod/default/ regex ^go\s|module|require|replace|exclude 0:keyword
-    add-highlighter shared/gomod/default/ regex v(\d+\.)?(\d+\.)?(\d+)([^\s]+|[\n]+) 0:Version
+    add-highlighter shared/gomod/default/ regex v(\d+\.)?(\d+\.)?(\d+)([^\s]+|[$]+) 0:Version
     # This specifically matches dependencies at the start of the line (prefixed by tab chars)
     # which has the nice effect of leaving replacements & exclusions un-highlighted
     add-highlighter shared/gomod/default/ regex ([\t]|^)([a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+)([^\s]+) 0:Dependency
